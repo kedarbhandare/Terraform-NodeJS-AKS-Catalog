@@ -1,0 +1,100 @@
+name: Manage AKS Cluster
+
+on:
+  workflow_dispatch:
+    inputs:
+      organizationName:
+        description: 'The name of your Organization. Terraform organizations let you manage organizations, projects, and teams.'
+        required: true
+      email:
+        description: 'Email of user/owner' 
+        required: true
+      projectName:
+        description: 'The name of your Project. Terraform projects let you manage resources and permissions.'  
+        required: true
+      workspaceName:
+        description: 'The name of your workspace. Terraform workspaces let you manage environment-specific configurations.'
+        required: true
+      resourceGroupName:
+        description: 'The name of your Azure Resource Group'  
+        required: true
+      clusterName:
+        description: 'The name of your AKS cluster'
+        required: true
+      region:
+        description: 'The Azure region where the cluster will be deployed'
+        required: true
+      action:
+        description: 'Action to perform (apply/destroy)'
+        required: true
+
+jobs:
+  apply_cluster:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.action == 'apply' }}
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+    - name: Create terraform.tfvars file
+      run: |
+        echo "organization_name = \"${{ github.event.inputs.organizationName }}\"" > Terraform/terraform.tfvars
+        echo "email = \"${{ github.event.inputs.email }}\"" >> Terraform/terraform.tfvars
+        echo "projectName = \"${{ github.event.inputs.projectName }}\"" >> Terraform/terraform.tfvars
+        echo "workspaceName = \"${{ github.event.inputs.workspaceName }}\"" >> Terraform/terraform.tfvars
+        echo "resourceGroupName = \"${{ github.event.inputs.resourceGroupName }}\"" >> Terraform/terraform.tfvars
+        echo "clusterName = \"${{ github.event.inputs.clusterName }}\"" >> Terraform/terraform.tfvars
+        echo "region = \"${{ github.event.inputs.region }}\"" >> Terraform/terraform.tfvars
+        echo "action = \"${{ github.event.inputs.action }}\"" >> Terraform/terraform.tfvars
+        echo "subscription_id = \"${{ vars.SUBSCRIPTIONID }}\"" >> Terraform/terraform.tfvars
+        echo "tfe_token = \"${{ secrets.TF_API_TOKEN }}\"" >> Terraform/terraform.tfvars  
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v1
+      with:
+        cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
+    - name: Terraform Init
+      run: terraform init
+      working-directory: Terraform
+    - name: Terraform Format
+      run: terraform fmt
+      working-directory: Terraform
+    - name: Terraform Validate
+      run: terraform validate
+      working-directory: Terraform
+    - name: Terraform Apply
+      run: terraform apply -auto-approve
+      working-directory: Terraform
+
+  destroy_cluster:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.action == 'destroy' }}
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+    - name: Create terraform.tfvars file
+      run: |
+        echo "organization_name = \"${{ github.event.inputs.organizationName }}\"" > Terraform/terraform.tfvars
+        echo "email = \"${{ github.event.inputs.email }}\"" >> Terraform/terraform.tfvars
+        echo "projectName = \"${{ github.event.inputs.projectName }}\"" >> Terraform/terraform.tfvars
+        echo "workspaceName = \"${{ github.event.inputs.workspaceName }}\"" >> Terraform/terraform.tfvars
+        echo "resourceGroupName = \"${{ github.event.inputs.resourceGroupName }}\"" >> Terraform/terraform.tfvars
+        echo "clusterName = \"${{ github.event.inputs.clusterName }}\"" >> Terraform/terraform.tfvars
+        echo "region = \"${{ github.event.inputs.region }}\"" >> Terraform/terraform.tfvars
+        echo "action = \"${{ github.event.inputs.action }}\"" >> Terraform/terraform.tfvars
+        echo "subscription_id = \"${{ vars.SUBSCRIPTIONID }}\"" >> Terraform/terraform.tfvars
+        echo "tfe_token = \"${{ secrets.TF_API_TOKEN }}\"" >> Terraform/terraform.tfvars
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v1
+      with:
+        cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
+    - name: Terraform Init
+      run: terraform init
+      working-directory: Terraform
+    - name: Terraform FMT
+      run: terraform fmt
+      working-directory: Terraform
+    - name: Terraform Validate
+      run: terraform validate
+      working-directory: Terraform
+    - name: Terraform Destroy
+      run: terraform destroy -auto-approve
+      working-directory: Terraform

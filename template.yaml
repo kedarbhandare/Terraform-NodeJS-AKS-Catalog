@@ -1,0 +1,179 @@
+# Define the API version and kind of resource
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+# Template metadata. Here's your intro to what this template does.
+metadata:
+  name: aks-cluster
+  title: Terraform Demo - Node.js App on AKS Cluster
+  description: Deploy a Node.js App on AKS Cluster using Terraform
+# The specification for how the template behaves
+spec:
+  # Who owns this template. Generally, it could be a team or individual
+  owner: user:kedar.bhandare
+  # The type of service this template deploys
+  type: service
+  # User-input parameters. Makes your templates dynamic!
+  parameters:
+    # Ask the user to input some basic app details
+    - title: Fill in some steps
+      required:
+        - name
+      properties:
+        name:
+          title: App Name
+          type: string
+          description: Unique name for your app
+          ui:autofocus: true  # This field gets auto-focused in UI
+          ui:options:
+            rows: 5  # Number of rows in the input area
+    # Ask the user where they want to store the code
+    - title: Choose a Repo location
+      required:
+        - repoUrl
+      properties:
+        repoUrl:
+          title: Repository Location
+          type: string
+          ui:field: RepoUrlPicker  # A special UI component for selecting repo URLs
+          ui:options:
+            allowedHosts:
+              - github.com  # Allowed hosts for repository
+    # Parameters for setting up the Hashicorp Project and Workspace
+    - title: Basic Terraform Organizations Configuration
+      required:
+        - organizationName
+        - email
+        - projectName
+        - workspaceName
+      properties:
+        organizationName:
+          title: Organization Name
+          type: string
+          description: The name of your Organization. Terraform organizations let you manage organizations, projects, and teams.
+          ui:autofocus: true
+          enum:
+            - kedar-org
+        email:
+          title: Email
+          type: string
+          description: Email of user/owner
+        projectName:
+          title: Project Name
+          type: string
+          description: The name of your Project. Terraform projects let you manage resources and permissions.  
+        workspaceName:
+          title: Workspace Name
+          type: string
+          description: The name of your workspace. Terraform workspaces let you manage environment-specific configurations.
+          enum:
+            - NodeJSAks
+    # Parameters for setting up the AKS cluster
+    - title: Basic Azure Kubernetes Service(AKS) Cluster Configuration
+      required:
+        - resourceGroupName
+        - clusterName
+        - region
+        - action
+      properties:
+        resourceGroupName:
+          title: Resource Group Name
+          type: string
+          description: The name of your Azure Resource Group  
+          ui:autofocus: true
+        clusterName:
+          title: Cluster Name
+          type: string
+          description: The name of your AKS cluster
+        region:
+          title: Azure Region
+          type: string
+          description: The Azure region where the cluster will be deployed
+          enum:
+            - eastus
+            - westeurope
+            - southeastasia
+        action:
+          title: Action
+          type: string
+          description: Action to perform (apply/destroy)
+          enum:
+            - apply
+            - destroy
+  # Steps that the template will execute in order
+  steps:
+    # Fetch the base template
+    - id: fetch-base
+      name: Fetch Base
+      action: fetch:template
+      input:
+        url: ./application  # Where the base content is stored
+        values:
+          name: ${{ parameters.name }}
+    # Publish the code to a GitHub repo
+    - id: publish
+      name: Publish
+      action: publish:github
+      input:
+        allowedHosts: ['github.com']
+        description: This is ${{ parameters.name }}
+        repoUrl: ${{ parameters.repoUrl }}
+    # Trigger a GitHub Action to set up the AKS cluster
+    - id: github-action
+      name: Trigger GitHub Action
+      action: github:actions:dispatch
+      input:
+        workflowId: manage-aks-cluster.yml  # GitHub Action workflow ID
+        repoUrl: 'github.com?repo=Terraform-NodeJS-AKS-Catalog&owner=kedarbhandare'
+        branchOrTagName: 'main'  # The branch to run this action on
+        workflowInputs:
+          organizationName: ${{ parameters.organizationName }}
+          email: ${{ parameters.email }}
+          projectName: ${{ parameters.projectName }}
+          workspaceName: ${{ parameters.workspaceName }}
+          resourceGroupName: ${{ parameters.resourceGroupName }}  
+          clusterName: ${{ parameters.clusterName }}
+          region: ${{ parameters.region }}
+          action: ${{ parameters.action }}
+    # Register the new component in the Backstage catalog
+    - id: register
+      name: Register
+      action: catalog:register
+      input:
+        repoContentsUrl: ${{ steps['publish'].output.repoContentsUrl }}
+        catalogInfoPath: '/infrastructure/infra-catalog-info.yaml'  # Where the catalog info is stored
+    # Trigger a GitHub Action to set up the AKS cluster
+    - id: github-action-node-app
+      name: Trigger GitHub Action
+      action: github:actions:dispatch
+      input:
+        workflowId: deploy-app-to-aks-cluster.yml  # GitHub Action workflow ID
+        repoUrl: 'github.com?repo=${{ parameters.name }}&owner=kedarbhandare'
+        branchOrTagName: 'main'  # The branch to run this action on
+        workflowInputs:
+          organizationName: ${{ parameters.organizationName }}
+          email: ${{ parameters.email }}
+          projectName: ${{ parameters.projectName }}
+          workspaceName: ${{ parameters.workspaceName }}
+          resourceGroupName: ${{ parameters.resourceGroupName }}  
+          clusterName: ${{ parameters.clusterName }}
+          region: ${{ parameters.region }}
+          action: "apply"
+          registryName: "idpbackstage.azurecr.io"
+          acrName: "idpbackstage"
+          
+    # Register the new component in the Backstage catalog
+    - id: register
+      name: Register
+      action: catalog:register
+      input:
+        repoContentsUrl: ${{ steps['publish'].output.repoContentsUrl }}
+        catalogInfoPath: '/application/app-catalog-info.yaml'  # Where the catalog info is stored
+
+  # Output links to the user after the template execution
+  output:
+    links:
+      - title: Repository
+        url: ${{ steps['publish'].output.remoteUrl }}
+      - title: Open in catalog
+        icon: catalog
+        entityRef: ${{ steps['register'].output.entityRef }}
